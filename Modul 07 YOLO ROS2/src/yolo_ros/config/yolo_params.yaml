@@ -1,0 +1,30 @@
+yolo_detector:
+  ros__parameters:
+    model_path: ""
+    input_topic: "/camera/image_raw"
+    output_topic: "/yolo/annotated"
+    detection_topic: "/yolo/detections"
+
+yolo_camera:
+  ros__parameters:
+    model_path: ""
+    input_topic: "/camera/image_raw"
+    window_name: "YOLO Camera"
+
+camera_display:
+  ros__parameters:
+    input_topic: "/camera/image_raw"
+    window_name: "Camera Raw"
+
+training_node:
+  ros__parameters:
+    data_dir: ""
+    model_output: "custom_yolov8.pt"
+    epochs: 50
+    batch_size: 16
+    img_size: 640
+
+rviz_display:
+  ros__parameters:
+    raw_topic: "/camera/image_raw"
+    yolo_topic: "/yolo/annotated"

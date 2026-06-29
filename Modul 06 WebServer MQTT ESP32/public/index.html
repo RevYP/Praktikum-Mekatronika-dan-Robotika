@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revita IoT - Dashboard Firebase</title>
+  <meta name="description" content="Dashboard monitoring suhu real-time ESP32 S2 Mini dengan Firebase RTDB">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --card-bg: rgba(22, 27, 45, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --accent-temp: #ff6b6b;
+      --accent-led-on: #10b981;
+      --accent-led-off: #ef4444;
+      --accent-wifi: #f59e0b;
+      --accent-blue: #3b82f6;
+      --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+
+    body {
+      background: var(--bg-color);
+      background-image: 
+        radial-gradient(at 10% 10%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+        radial-gradient(at 90% 90%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 1000px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #3b82f6, #10b981);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 20px;
+      border: 1px solid var(--card-border);
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      background-color: var(--accent-led-off);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-led-off);
+      transition: all 0.3s ease;
+    }
+    .status-dot.online {
+      background-color: var(--accent-led-on);
+      box-shadow: 0 0 8px var(--accent-led-on);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 8px var(--accent-led-on); }
+      50% { box-shadow: 0 0 16px var(--accent-led-on), 0 0 24px var(--accent-led-on); }
+    }
+
+    main {
+      width: 100%;
+      max-width: 1000px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+      main { grid-template-columns: repeat(3, 1fr); }
+      .chart-card { grid-column: span 3; }
+      .control-card { grid-column: span 3; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+    .card:hover { transform: translateY(-4px); border-color: rgba(255,255,255,0.15); }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 4px;
+    }
+    .card-temp::before { background: linear-gradient(90deg, #ff6b6b, #ff9f43); }
+    .card-led::before  { background: linear-gradient(90deg, #10b981, #3b82f6); }
+    .card-wifi::before { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+
+    .card-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 16px;
+    }
+
+    .card-value {
+      font-size: 3rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+      letter-spacing: -2px;
+      line-height: 1;
+    }
+    .card-temp .card-value { color: var(--accent-temp); }
+    .card-wifi .card-value { color: var(--accent-wifi); }
+
+    .unit { font-size: 1.3rem; font-weight: 500; color: var(--text-muted); letter-spacing: 0; }
+    .card-footer { font-size: 0.75rem; color: var(--text-muted); margin-top: 10px; }
+
+    /* LED Card */
+    .led-indicator {
+      width: 70px; height: 70px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      margin-bottom: 12px;
+      transition: all 0.4s ease;
+    }
+    .led-indicator.led-on {
+      background: rgba(16, 185, 129, 0.15);
+      box-shadow: 0 0 30px rgba(16, 185, 129, 0.5), inset 0 0 15px rgba(16, 185, 129, 0.2);
+    }
+    .led-indicator.led-off {
+      background: rgba(239, 68, 68, 0.1);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+    }
+    .led-status-text {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    /* Chart Card */
+    .chart-card { align-items: stretch; }
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .chart-header h2 { font-size: 1.1rem; font-weight: 700; }
+    .live-badge {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; font-weight: 600;
+      color: var(--accent-temp);
+      background: rgba(255, 107, 107, 0.1);
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 107, 107, 0.2);
+    }
+    .live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent-temp);
+      animation: pulse-red 1.5s infinite;
+    }
+    @keyframes pulse-red {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .chart-container { position: relative; height: 250px; width: 100%; }
+
+    /* Control Card */
+    .control-card { flex-direction: row; justify-content: space-between; align-items: center; padding: 22px 30px; }
+    .control-info { text-align: left; }
+    .control-info h2 { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+    .control-info p { font-size: 0.8rem; color: var(--text-muted); }
+
+    .led-btn {
+      padding: 13px 30px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
+    }
+    .led-btn:hover { transform: scale(1.04); }
+    .led-btn:active { transform: scale(0.96); }
+    .led-btn.btn-turn-on {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 4px 20px rgba(16, 185, 129, 0.2);
+    }
+    .led-btn.btn-turn-off {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.15);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🌐 IoT Monitoring Dashboard</h1>
+    <div class="connection-status">
+      <div id="statusDot" class="status-dot"></div>
+      <span id="statusText">Menghubungkan...</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Card Temperatur -->
+    <div class="card card-temp">
+      <div class="card-title">🌡️ Temperatur LM35</div>
+      <div class="card-value"><span id="tempVal">--</span><span class="unit">°C</span></div>
+      <div class="card-footer" id="timeFooter">Menunggu data sensor...</div>
+    </div>
+
+    <!-- Card LED Status -->
+    <div class="card card-led">
+      <div class="card-title">💡 Status LED Onboard</div>
+      <div id="ledIndicator" class="led-indicator led-off">💡</div>
+      <div id="ledStatusText" class="led-status-text" style="color: var(--accent-led-off);">-- / --</div>
+      <div class="card-footer">GPIO 15 (Active-Low)</div>
+    </div>
+
+    <!-- Card WiFi RSSI -->
+    <div class="card card-wifi">
+      <div class="card-title">📶 WiFi RSSI</div>
+      <div class="card-value"><span id="wifiVal">--</span><span class="unit">dBm</span></div>
+      <div class="card-footer" id="uptimeFooter">Uptime: --</div>
+    </div>
+
+    <!-- Card Kontrol LED -->
+    <div class="card control-card">
+      <div class="control-info">
+        <h2>Kontrol LED Onboard</h2>
+        <p>Kirim perintah langsung ke ESP32 via Firebase RTDB.</p>
+      </div>
+      <button id="ledBtn" class="led-btn btn-turn-on" onclick="toggleLed()">
+        <span>🟢</span> Nyalakan LED
+      </button>
+    </div>
+
+    <!-- Card Grafik Suhu -->
+    <div class="card chart-card">
+      <div class="chart-header">
+        <h2>📊 Riwayat Suhu</h2>
+        <div class="live-badge">
+          <div class="live-dot"></div>
+          Live Update
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="sensorChart"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // ====== KONFIGURASI FIREBASE ======
+    const firebaseConfig = {
+      apiKey: "AIzaSyAtJufRCWhRuKrgkEhlQXUBeQJcrtKOnbI",
+      authDomain: "monitoring-suhu-036.firebaseapp.com",
+      databaseURL: "https://monitoring-suhu-036-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "monitoring-suhu-036",
+      storageBucket: "monitoring-suhu-036.firebasestorage.app",
+      messagingSenderId: "547126453335",
+      appId: "1:547126453335:web:de08a09a2959ef171cef12",
+      measurementId: "G-JVKLL89N6G"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const deviceRef = db.ref('/device/ESP32S2_Lolin_01');
+
+    let currentLedState = false;
+
+    // ====== CHART SETUP ======
+    const MAX_POINTS = 30;
+    const chartLabels = [];
+    const chartData = [];
+
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: chartLabels,
+        datasets: [{
+          label: 'Suhu (°C)',
+          data: chartData,
+          borderColor: '#ff6b6b',
+          backgroundColor: (ctx) => {
+            const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, 250);
+            gradient.addColorStop(0, 'rgba(255, 107, 107, 0.3)');
+            gradient.addColorStop(1, 'rgba(255, 107, 107, 0.0)');
+            return gradient;
+          },
+          fill: true,
+          tension: 0.4,
+          borderWidth: 2.5,
+          pointBackgroundColor: '#ff6b6b',
+          pointBorderColor: '#0b0f19',
+          pointBorderWidth: 2,
+          pointRadius: 4,
+          pointHoverRadius: 7,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400, easing: 'easeInOutQuart' },
+        scales: {
+          x: {
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: '#9ca3af', font: { family: 'Inter', size: 10 }, maxTicksLimit: 8 }
+          },
+          y: {
+            grid: { color: 'rgba(255,255,255,0.05)' },
+            ticks: { color: '#9ca3af', font: { family: 'Inter', size: 10 }, callback: v => v + '°C' },
+            min: 0, max: 50
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(22,27,45,0.95)',
+            borderColor: 'rgba(255,107,107,0.3)',
+            borderWidth: 1,
+            titleColor: '#9ca3af',
+            bodyColor: '#ff6b6b',
+            bodyFont: { weight: '700', size: 14 },
+            callbacks: { label: ctx => ` ${ctx.parsed.y.toFixed(1)}°C` }
+          }
+        }
+      }
+    });
+
+    // ====== LISTENER 1: TEMPERATURE ONLY (untuk chart) ======
+    // Hanya trigger saat temperature berubah, bukan saat LED/rssi/uptime berubah
+    deviceRef.child('temperature').on('value', (snap) => {
+      const temp = snap.val();
+      if (temp === null) return;
+
+      // Update card
+      document.getElementById('tempVal').textContent = parseFloat(temp).toFixed(1);
+      document.getElementById('timeFooter').textContent =
+        `Terakhir update: ${new Date().toLocaleTimeString('id-ID')}`;
+
+      // ✅ Hanya tambah titik grafik saat suhu berubah (bukan saat LED toggle)
+      const timestamp = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      chartLabels.push(timestamp);
+      chartData.push(parseFloat(temp));
+      if (chartLabels.length > MAX_POINTS) {
+        chartLabels.shift();
+        chartData.shift();
+      }
+      chart.update();
+
+      // Set online status
+      document.getElementById('statusDot').classList.add('online');
+      document.getElementById('statusText').textContent = 'Online';
+    });
+
+    // ====== LISTENER 2: LED STATUS ======
+    deviceRef.child('led').on('value', (snap) => {
+      const ledVal = snap.val();
+      if (ledVal === null) return;
+
+      currentLedState = ledVal;
+      const indicator = document.getElementById('ledIndicator');
+      const statusText = document.getElementById('ledStatusText');
+      const btn = document.getElementById('ledBtn');
+
+      if (currentLedState) {
+        // led = true → GPIO LOW → LED Nyala (Active-Low)
+        indicator.className = 'led-indicator led-on';
+        statusText.textContent = 'MENYALA / ON';
+        statusText.style.color = 'var(--accent-led-on)';
+        btn.className = 'led-btn btn-turn-off';
+        btn.innerHTML = '<span>🔴</span> Matikan LED';
+      } else {
+        // led = false → GPIO HIGH → LED Mati
+        indicator.className = 'led-indicator led-off';
+        statusText.textContent = 'MATI / OFF';
+        statusText.style.color = 'var(--accent-led-off)';
+        btn.className = 'led-btn btn-turn-on';
+        btn.innerHTML = '<span>🟢</span> Nyalakan LED';
+      }
+    });
+
+    // ====== LISTENER 3: RSSI & UPTIME ======
+    deviceRef.child('rssi').on('value', (snap) => {
+      const val = snap.val();
+      if (val !== null) document.getElementById('wifiVal').textContent = val;
+    });
+
+    deviceRef.child('uptime').on('value', (snap) => {
+      const up = snap.val();
+      if (up === null) return;
+      const h = Math.floor(up / 3600);
+      const m = Math.floor((up % 3600) / 60);
+      const s = up % 60;
+      document.getElementById('uptimeFooter').textContent =
+        `Uptime: ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    });
+
+    // ====== TOGGLE LED ======
+    function toggleLed() {
+      const nextState = !currentLedState;
+      deviceRef.child('led').set(nextState).catch(err => {
+        alert('Gagal mengubah LED: ' + err.message);
+      });
+    }
+  </script>
+</body>
+</html>

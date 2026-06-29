@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>yolo_ros</name>
+  <version>0.0.1</version>
+  <description>YOLOv8 ROS 2 Integration Package</description>
+  <maintainer email="student@otomasi.id">Student</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>vision_opencv</depend>
+  <depend>python3-opencv</depend>
+
+  <exec_depend>ultralytics</exec_depend>
+  <exec_depend>ros-humble-cv-bridge</exec_depend>
+  <exec_depend>ros-humble-sensor-msgs</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_lint_generic</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

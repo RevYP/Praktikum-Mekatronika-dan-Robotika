@@ -1,0 +1,13 @@
+# Python dependencies for MediaPipe Modbus ROS2 Node
+
+# Core dependencies
+numpy<2
+mediapipe==0.10.35
+opencv-python<4.10
+opencv-contrib-python<4.10
+pymodbus>=3.0.0
+PyQt5>=5.15.0
+PyYAML>=5.4.0
+
+# Optional for better performance
+matplotlib>=3.5.0
